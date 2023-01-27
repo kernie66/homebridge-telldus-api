@@ -3,9 +3,21 @@
 const homebridgeLib = require('homebridge-lib');
 const querystring = require('qs');
 
-function getPath(path, qs) {
+function setPath(path, qs) {
   return qs ? `${path}?${querystring.stringify(qs)}` : path;
 }
+
+function checkFunction(handler) {
+  if (handler && typeof handler === 'function') {
+    return handler;
+  }
+  return false;
+}
+
+const regExp = {
+  host: /(^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$)|(^([A-Za-z0-9_-]+){1}(\.[A-Za-z0-9_-]+)$)/,
+  token: /^\w{100}\.\w{39}\.\w{43}$/,
+};
 
 const commands = {
   on: 0x0001, // 1
@@ -26,26 +38,21 @@ const supportedMethods = Object.values(commands).reduce(
 );
 
 class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
-  constructor({
-    host = '127.0.0.1',
-    accessToken = '',
-    requestHandler = null,
-    responseHandler = null,
-    errorHandler = null,
-  } = {}) {
-    //    const checkedUrl = makeURL(host);
-    //    if (!checkedUrl) {
-    //      throw new TypeError('TelldusAPI: host not a valid value');
-    //    }
+  constructor(host, accessToken) {
     super();
+    if (!regExp.host.test(host)) {
+      throw new TypeError(
+        `TelldusAPI: host ${host} is not a valid value`
+      );
+    }
+    if (!regExp.token.test(accessToken)) {
+      throw new TypeError(
+        'TelldusAPI: access token not a valid value'
+      );
+    }
     this.host = host;
     this.headers = { Authorization: `Bearer ${accessToken}` };
 
-    console.log('Supported methods:', supportedMethods);
-    console.log(
-      'Querystring:',
-      querystring.stringify({ supportedMethods })
-    );
     try {
       this.apiClient = new homebridgeLib.HttpClient({
         https: false,
@@ -59,68 +66,83 @@ class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
       });
       this.apiClient
         .on('error', (error) => {
-          if (errorHandler) {
-            errorHandler(error);
+          this.lastError = error;
+          if (this.errorHandler) {
+            this.errorHandler(error);
           }
         })
         .on('request', (request) => {
-          if (requestHandler) {
-            requestHandler(request);
+          if (this.requestHandler) {
+            this.requestHandler(request);
           }
         })
         .on('response', (response) => {
-          if (responseHandler) {
-            responseHandler(response);
+          this.lastResponse = response;
+          if (this.responseHandler) {
+            this.responseHandler(response);
           }
         });
     } catch (error) {
-      console.log(error);
+      throw new TypeError(
+        'TelldusAPI: Error initialising API client',
+        error
+      );
     }
 
     // return this.apiClient;
   }
 
+  setRequestHandler(handler) {
+    this.requestHandler = checkFunction(handler);
+  }
+
+  setResponseHandler(handler) {
+    this.responseHandler = checkFunction(handler);
+  }
+
+  setErrorHandler(handler) {
+    this.errorHandler = checkFunction(handler);
+  }
+
+  getLastResponse() {
+    return this.lastResponse;
+  }
+
+  getLastError() {
+    return this.lastError;
+  }
+
+  _checkResponseOk(response) {
+    if (response.statusCode >= 200 && response.statusCode <= 299) {
+      response.ok = true;
+    } else {
+      response.ok = false;
+    }
+    return response;
+  }
+
   async getSystemInfo() {
     const response = await this.apiClient.get('system/info');
-    return response.body;
+    return this._checkResponseOk(response);
   }
 
   async listSensors() {
     const response = await this.apiClient.get('sensors/list');
-    return response.body.sensor;
+    return this._checkResponseOk(response);
   }
 
   async getSensorInfo(id) {
-    const response = this.apiClient.get(
-      getPath('sensor/info', { id })
+    const response = await this.apiClient.get(
+      setPath('sensor/info', { id })
     );
-    return response.body;
+    return this._checkResponseOk(response);
   }
 
-  /*
-  async setSensorName(id, name) {
-    return this.request({
-      path: '/sensor/setName',
-      qs: { id, name },
-    });
-  }
-
-  async setSensorIgnore(id, ignore) {
-    return this.request({
-      path: '/sensor/setIgnore',
-      qs: { id, ignore },
-    });
-  }
-
-  async listClients() {
-    return this.request({ path: '/clients/list' });
-  }
-*/
   async listDevices() {
-    const response = await this.apiClient.get('devices/list');
-    //      qs: { supportedMethods },
-    //    });
-    return response.body.device;
+    const response = await this.apiClient.get(
+      setPath('devices/list', { supportedMethods })
+    );
+    return this._checkResponseOk(response);
   }
 
   /*
@@ -131,61 +153,37 @@ class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
     });
   }
 
-  async addDevice(device) {
-    return this.request({ path: '/device/setName', qs: device });
-  }
-
-  async deviceLearn(id) {
-    return this.request({ path: '/device/learn', qs: { id } });
-  }
-
-  async setDeviceModel(id, model) {
-    return this.request({
-      path: '/device/setModel',
-      qs: { id, model },
-    });
-  }
-
-  async setDeviceName(id, name) {
-    return this.request({
-      path: '/device/setName',
-      qs: { id, name },
-    });
-  }
-
   async setDeviceParameter(id, parameter, value) {
     return this.request({
       path: '/device/setParameter',
       qs: { id, parameter, value },
     });
   }
-
-  async setDeviceProtocol(id, protocol) {
-    return this.request({
-      path: '/device/setProtocol',
-      qs: { id, protocol },
-    });
-  }
-
-  async removeDevice(id) {
-    return this.request({ path: '/device/remove', qs: { id } });
-  }
-
+*/
   async bellDevice(id) {
-    return this.request({ path: '/device/bell', qs: { id } });
+    const response = await this.apiClient.get(
+      setPath('device/bell', { id })
+    );
+    return this._checkResponseOk(response);
+    return response.body.status == 'success';
   }
 
   async dimDevice(id, level) {
-    return this.request({ path: '/device/dim', qs: { id, level } });
+    const response = await this.apiClient.get(
+      setPath('device/dim', { id, level })
+    );
+    return response.body.status == 'success';
   }
 
   async onOffDevice(id, on) {
-    return this.request({
-      path: `/device/turn${on ? 'On' : 'Off'}`,
-      qs: { id },
-    });
+    const response = await this.apiClient.get(
+      setPath(`device/turn${on ? 'On' : 'Off'}`, { id })
+    );
+    return this._checkResponseOk(response);
+    return response.body.status == 'success';
   }
 
+  /*
   async stopDevice(id) {
     return this.request({ path: '/device/stop', qs: { id } });
   }

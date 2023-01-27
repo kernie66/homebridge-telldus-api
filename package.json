@@ -1,7 +1,7 @@
 {
-  "name": "templateforv2-static",
-  "version": "1.0.0",
-  "description": "",
+  "name": "homebridge-telldus-api",
+  "version": "0.0.1",
+  "description": "Created with CodeSandbox",
   "main": "index.html",
   "scripts": {
     "start": "nodemon index.js",
