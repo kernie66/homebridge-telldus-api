@@ -7,6 +7,20 @@ const {
   errorHandler,
 } = require('./utils/apiHandlers');
 const process = require('process');
+const checkStatusCode = require('./utils/checkStatusCode');
+
+const supportedCommands = {
+  on: 0x0001, // 1
+  off: 0x0002, // 2
+  bell: 0x0004, // 4
+  // toggle: 0x0008, // 8
+  dim: 0x0010, // 16
+  // learn: 0x0020, // 32
+  //execute: 0x0040, // 64
+  // up: 0x0080, // 128
+  //down: 0x0100, // 256
+  //stop: 0x0200, // 512
+};
 
 const accessToken =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImF1ZCI6ImhvbWVicmlkZ2UtdGVsbGR1cy10b28iLCJleHAiOjE3MDE2MzkzNTl9.eyJyZW5ldyI6dHJ1ZSwidHRsIjozMTUzNjAwMH0.X_H2N8fZY1bZ0d7f5c8unNChUh3oD6B3y_rY2ylQTNo';
@@ -55,12 +69,24 @@ async function telldus(apiClient) {
     );
     response = await apiClient.getSensorInfo(id);
     console.log('Sensor info:', response.body);
-    response = await apiClient.listDevices();
-    console.log('Devices:', response.body.device[0]);
-    response = await apiClient.onOffDevice(14, 0);
-    console.log('Off:', response.body.status);
+    response = await apiClient.getSensorInfo(100);
+    if (response.ok) {
+      console.log('Sensor info:', response.body);
+    } else {
+      checkStatusCode(response);
+    }
+    response = await apiClient.listDevices(
+      apiClient.setSupportedMethods(supportedCommands)
+    );
+    if (response.ok) {
+      console.log('Devices:', response.body.device);
+    } else {
+      checkStatusCode(response);
+    }
+    //    response = await apiClient.onOffDevice(14, 0);
+    //    console.log('Off:', response.body.status);
     response = await apiClient.bellDevice(130);
-    console.log('Bell:', response);
+    console.log('Bell:', response.body.status);
     response = await apiClient.onOffDevice(14, 1);
     console.log('On:', response.body.status);
     response = await apiClient.dimDevice(186, 100);
@@ -74,40 +100,4 @@ async function telldus(apiClient) {
     );
   }
   return response;
-
-  function checkStatusCode(response) {
-    if (response.statusCode >= 400 && response.statusCode <= 499) {
-      if (response.statusCode == 401) {
-        console.error(
-          'Access denied, check if the access token is valid'
-        );
-      } else if (response.statusCode == 404) {
-        console.error(
-          'Host API not found, check if the host address is correct'
-        );
-      } else if (response.statusCode == 408) {
-        console.error(
-          'Request timed out, check if the host address is correct'
-        );
-      } else {
-        console.error(
-          'Telldus reports client error %s, %s',
-          response.statusCode,
-          response.statusMessage
-        );
-      }
-    } else if (
-      response.statusCode >= 500 &&
-      response.statusCode <= 599
-    ) {
-      console.error(
-        'Telldus reports client error %s, %s',
-        response.statusCode,
-        response.statusMessage
-      );
-    } else {
-      return false;
-    }
-    return true;
-  }
 }

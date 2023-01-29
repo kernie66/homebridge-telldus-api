@@ -15,7 +15,8 @@ function checkFunction(handler) {
 }
 
 const regExp = {
-  host: /(^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$)|(^([A-Za-z0-9_-]+){1}(\.[A-Za-z0-9_-]+)$)/,
+  ip: /(^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$)/,
+  host: /(^([A-Za-z0-9_-]+){1}(\.[A-Za-z0-9_-]+)$)/,
   token: /^\w{100}\.\w{39}\.\w{43}$/,
 };
 
@@ -32,24 +33,21 @@ const commands = {
   stop: 0x0200, // 512
 };
 
-const supportedMethods = Object.values(commands).reduce(
-  (memo, num) => memo + num,
-  0
-);
-
 class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
   constructor(host, accessToken) {
     super();
-    if (!regExp.host.test(host)) {
+    if (!regExp.ip.test(host) && !regExp.host.test(host)) {
       throw new TypeError(
         `TelldusAPI: host ${host} is not a valid value`
       );
     }
+
     if (!regExp.token.test(accessToken)) {
       throw new TypeError(
-        'TelldusAPI: access token not a valid value'
+        'TelldusAPI: given access token not a valid value'
       );
     }
+
     this.host = host;
     this.headers = { Authorization: `Bearer ${accessToken}` };
 
@@ -85,7 +83,8 @@ class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
     } catch (error) {
       throw new TypeError(
         'TelldusAPI: Error initialising API client',
-        error
+        error.name,
+        error.message
       );
     }
 
@@ -104,6 +103,13 @@ class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
     this.errorHandler = checkFunction(handler);
   }
 
+  setSupportedMethods(commands) {
+    return Object.values(commands).reduce(
+      (memo, num) => memo + num,
+      0
+    );
+  }
+
   getLastResponse() {
     return this.lastResponse;
   }
@@ -113,10 +119,11 @@ class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
   }
 
   _checkResponseOk(response) {
+    response.ok = false;
     if (response.statusCode >= 200 && response.statusCode <= 299) {
-      response.ok = true;
-    } else {
-      response.ok = false;
+      if (!response.body.error) {
+        response.ok = true;
+      }
     }
     return response;
   }
@@ -138,34 +145,36 @@ class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
     return this._checkResponseOk(response);
   }
 
-  async listDevices() {
+  async listDevices(
+    supportedMethods = this.setSupportedMethods(commands)
+  ) {
     const response = await this.apiClient.get(
       setPath('devices/list', { supportedMethods })
     );
     return this._checkResponseOk(response);
   }
 
-  /*
   async getDeviceInfo(id) {
-    return this.request({
-      path: '/device/info',
-      qs: { id, supportedMethods },
-    });
+    const response = await this.apiClient.get(
+      setPath('device/info', { id })
+    );
+    return this._checkResponseOk(response);
   }
 
+  /*
   async setDeviceParameter(id, parameter, value) {
     return this.request({
       path: '/device/setParameter',
       qs: { id, parameter, value },
     });
   }
-*/
+  */
+
   async bellDevice(id) {
     const response = await this.apiClient.get(
       setPath('device/bell', { id })
     );
     return this._checkResponseOk(response);
-    return response.body.status == 'success';
   }
 
   async dimDevice(id, level) {
@@ -180,7 +189,6 @@ class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
       setPath(`device/turn${on ? 'On' : 'Off'}`, { id })
     );
     return this._checkResponseOk(response);
-    return response.body.status == 'success';
   }
 
   /*
@@ -203,10 +211,7 @@ class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
       qs: { id, method: command, value },
     });
   }
-
-  async listEvents() {
-    return this.request({ path: '/events/list' });
-  } */
+  */
 }
 
 module.exports = HomebridgeTelldusApi;
