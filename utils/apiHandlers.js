@@ -28,6 +28,7 @@ function requestHandler(request) {
     request.method,
     request.url
   );
+  console.log('Bind test:', this.success);
 }
 
 function responseHandler(response) {

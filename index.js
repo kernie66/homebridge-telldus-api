@@ -27,9 +27,10 @@ const accessToken =
 //const host = 'kernie.asuscomm.com:8118';
 const host = '192.168.1.118';
 
+this.success = 'Yes, it works';
 try {
   this.telldusApi = new HomebridgeTelldusApi(host, accessToken);
-  this.telldusApi.setRequestHandler(requestHandler);
+  this.telldusApi.setRequestHandler(requestHandler.bind(this));
   this.telldusApi.setResponseHandler(responseHandler);
   this.telldusApi.setErrorHandler(errorHandler);
 } catch (error) {
@@ -40,6 +41,7 @@ try {
   );
   return false;
 }
+console.log('URL:', this.telldusApi.getUrl);
 telldus(this.telldusApi);
 return true;
 
