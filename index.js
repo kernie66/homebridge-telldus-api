@@ -93,6 +93,8 @@ async function telldus(apiClient) {
     console.log('On:', response.body.status);
     response = await apiClient.dimDevice(186, 100);
     console.log('Dimmer:', response);
+    response = await apiClient.refreshAccessToken();
+    console.log(response);
   } catch (error) {
     console.error(
       'Access failed to Telldus API\n',

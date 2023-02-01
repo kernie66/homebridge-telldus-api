@@ -49,6 +49,7 @@ class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
     }
 
     this.host = host;
+    this.accessToken = accessToken;
     this.headers = { Authorization: `Bearer ${accessToken}` };
 
     try {
@@ -62,6 +63,7 @@ class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
         timeout: 15, //this.config.timeout,
         validStatusCodes: [200, 401, 403, 404],
       });
+
       this.apiClient
         .on('error', (error) => {
           this.lastError = error;
@@ -89,6 +91,10 @@ class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
     }
 
     // return this.apiClient;
+  }
+
+  get getUrl() {
+    return this.apiClient.url;
   }
 
   setRequestHandler(handler) {
@@ -212,6 +218,31 @@ class HomebridgeTelldusApi extends homebridgeLib.HttpClient {
     });
   }
   */
+  async refreshAccessToken() {
+    if (
+      new Date().getTime() - this.lastRefresh <
+      this.tokenRefreshIntervalSeconds * 1000
+    )
+      return;
+    this.lastRefresh = new Date().getTime();
+
+    const token = this.accessToken;
+    const response = await this.apiClient.get(
+      setPath('refreshToken', { token })
+    );
+
+    if (!response.body.expires) {
+      console.debug(response.body);
+      throw new Error(
+        `Unable to refresh access token: ${response.body.error}`
+      );
+    }
+
+    console.debug(
+      'Refrehed access token, expires',
+      new Date(response.body.expires * 1000).toISOString()
+    );
+  }
 }
 
 module.exports = HomebridgeTelldusApi;
